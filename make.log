@@ -1,0 +1,7 @@
+Making all in src
+make[1]: Entering directory `/home/jesse/code/pbar/src'
+ cd .. && /bin/sh /home/jesse/code/pbar/missing --run automake-1.9b --foreign  src/Makefile
+src/Makefile.am:3: `library_include_HEADERS' is used but `library_includedir' is undefined
+make[1]: *** [Makefile.in] Error 1
+make[1]: Leaving directory `/home/jesse/code/pbar/src'
+make: *** [all-recursive] Error 1
