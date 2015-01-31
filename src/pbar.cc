@@ -93,8 +93,8 @@ TextProgressBar::show () {
 
     ss << '\r';
 
-    if (config.show_count) {
-        std::string s = format_count (width);
+    if (config.show_prefix) {
+        std::string s = cb_prefix_ ? cb_prefix_ (width) : format_count (width);
         ss << s;
         width -= s.length (); // format_count ensures this will be valid
     }
@@ -110,7 +110,12 @@ TextProgressBar::show () {
     ss << '[';
     std::string s = progress (width - 2);
     if (config.show_value) {
-        format_value (s);
+        ::size_t orig_width = s.length ();
+        cb_value_ ? cb_value_ (s) : format_value (s);
+        if (s.length () > orig_width) {
+            /* trim to required length if callback did not obey width */
+            s = s.substr (0, orig_width);
+        }
     }
     ss << s << ']';
 
@@ -126,81 +131,6 @@ TextProgressBar::update (::size_t n) {
     show ();
 }
     
-void
-ColorProgressBar::show () {
-    struct winsize ws;
-    ioctl (STDOUT_FILENO, TIOCGWINSZ, &ws);
-    ::size_t width = static_cast< ::size_t >(ws.ws_col);
-    std::stringstream ss;
-
-    ss << '\r';
-
-    if (config.show_count) {
-        std::string s = format_count (width);
-        ss << AttrBold << ColorRed << s << AttrClear;
-        width -= s.length (); // format_count ensures this will be valid
-    }
-
-    /*
-     * If there is not enough room for at least "[*]" then just show prefix
-     */
-    if (width < 3) {
-        display << ss.str () << std::flush;
-        return;
-    }
-
-    ss << '[';
-    std::string s = progress (width - 2);
-    if (config.show_value) {
-        std::vector< std::string > terms = format_value (s);
-        std::vector< std::string >::iterator vit = terms.begin ();
-        for (; vit != terms.end (); ++vit) {
-            ss << *vit;
-        }
-    } else {
-        ss << s;
-    }
-    ss << ']';
-
-    display << ss.str () << std::flush;
-}
-
-void 
-ColorProgressBar::update (::size_t n) {
-    value_ += n;
-    if (value_ > capacity_) {
-        value_ = capacity_;
-    }
-    show ();
-}
-
-std::vector< std::string >
-ColorProgressBar::format_value (const std::string& s) {
-    double v = 100 * static_cast< double >(value_) / 
-                static_cast< double >(capacity_);
-    ::size_t width = s.length ();
-    std::stringstream ss;
-    std::vector< std::string > terms;
-    ss.setf (std::ios::fixed, std::ios::floatfield);
-    ss.precision (1);
-    ss << '[' << v << "%]";
-    std::string p = ss.str ();
-    // Forget it if we dont have the room
-    if (p.length () < width) {
-        // Find center, adjusteded for text (ignore formatting characters)
-        ::size_t c = width / 2 - p.length () / 2;
-        terms.push_back (s.substr(0,c));
-        terms.push_back (std::string(AttrBold));
-        terms.push_back (std::string(ColorBlue));
-        terms.push_back (p);
-        terms.push_back (std::string(AttrClear));
-        terms.push_back (s.substr(c + p.length ()));
-    } else {
-        terms.push_back (ss.str ());
-    }
-    return terms;
-}
-
 void * 
 GraphicalProgressBar::run_gtk (void * arg) {
     int h = -1, w = 400;

@@ -44,11 +44,27 @@ namespace pbar {
      */
     enum { 
         SHOW_VALUE = (0x1 << 0), // show the % complete
-        SHOW_COUNT = (0x1 << 1)  // show the N/M status
+        SHOW_PREFIX = (0x1 << 1)  // show the N/M status
     };
 }
 
 namespace pbar {
+
+/**
+ * Callback function type (used to build the prefix string)
+ * @param w The overall width of the screen. 
+ * @return A string (not longer than w) that will precede the progress bar
+ */
+typedef std::string (*prefix_fun)(::size_t w);
+
+/**
+ * Callback function type (used to build the progress meter)
+ * @param s The progress bar string (without formatting)
+ * @note This function should overwrite the string passed in as necessary. Simply
+ * returning the input string will show the progress as [***      ] without
+ * additional text added.
+ */
+typedef void (*value_fun)(std::string& s);
 
 /**
  * Generic ProgressBar class
@@ -83,7 +99,10 @@ public:
  * Textual progress bar that uses stars to mark progress along the screen
  */
 class TextProgressBar : ProgressBar {
-protected:
+
+    prefix_fun cb_prefix_;
+    value_fun cb_value_;
+
     /*
      * Format configuration. 
      * Defines whether current value and/or percent complete
@@ -92,10 +111,10 @@ protected:
      */
     struct Config {
         unsigned show_value:1; // Show XX.X% 
-        unsigned show_count:1; // Show N/M
-        Config (int opts) : show_value(0), show_count(0) {
+        unsigned show_prefix:1; // Show N/M
+        Config (int opts) : show_value(0), show_prefix(0) {
            if (opts & SHOW_VALUE) { show_value = 1; }
-           if (opts & SHOW_COUNT) { show_count = 1; }
+           if (opts & SHOW_PREFIX) { show_prefix = 1; }
         }
     };
 
@@ -115,11 +134,6 @@ protected:
     void show ();
 
     /*
-     * Clear the current display
-     */
-    void clear ();
-
-    /*
      * Given a string from TextProgressBar::progress, overwrite
      * a portion of the string with the percentage complete (centered)
      */
@@ -131,47 +145,34 @@ protected:
      */
     std::string format_count (::size_t);
 
-    friend class ColorProgressBar;
+    /*
+     * Clear the current display
+     */
+    void clear ();
 
 public:
 
     TextProgressBar (std::ostream& os, ::size_t cap, int opts = SHOW_VALUE) :
-        ProgressBar(cap), display(os), config(opts) {}
+        ProgressBar(cap), 
+        cb_prefix_(0), cb_value_(0),
+        display(os), config(opts) {}
 
     TextProgressBar (::size_t capacity, int opts = SHOW_VALUE) :
-        ProgressBar(capacity), display(std::cerr), config(opts) {}
+        ProgressBar(capacity), 
+        cb_prefix_(0), cb_value_(0),
+        display(std::cerr), config(opts) {}
+
+    /**
+     * callback used to create the prefix
+     */
+    inline void set_prefix_callback (prefix_fun fun) { cb_prefix_ = fun; }
+
+    /**
+     * callback used to format the actual progress bar
+     */
+    inline void set_value_callback (value_fun fun) { cb_value_ = fun; }
 
     ~TextProgressBar () { clear (); }
-
-    virtual void update (::size_t n = 1);
-};
-
-/**
- * Basically the same as TextProgressBar with the addition that the 
- * count or value outputs will be colored (if supported)
- */
-class ColorProgressBar : TextProgressBar {
-
-    /*
-     * This method differes from TextProgressBar as we need to inject
-     * attribute sequences into the formatted output
-     */
-    void show ();
-
-    /*
-     * Build and return a vector of strings that, when joined, will modify
-     * the input string to produce a colored version with the progress
-     * value centered.
-     */
-    std::vector< std::string > format_value (const std::string& s);
-
-public:
-
-    ColorProgressBar (std::ostream& os, ::size_t cap, int opts = SHOW_VALUE) :
-        TextProgressBar(os, cap, opts) {}
-
-    ColorProgressBar (::size_t capacity, int opts = SHOW_VALUE) :
-        TextProgressBar(capacity, opts) {}
 
     virtual void update (::size_t n = 1);
 };
